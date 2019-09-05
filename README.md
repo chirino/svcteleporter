@@ -48,19 +48,23 @@ The main thing you need to figure out is a host name that your importer process 
     These files contain secrets.  Please be careful sharing them.
     $  
 
+You can then use the `oc create -f openshift-importer.yaml` to create the importer deployment on your openshift cluster.  You can also use `oc create -f openshift-exporter.yaml` to create the exporter.  If you don't have an openshift cluster, you can manually ron the importer and exporters like so:
+    
+    $ svcteleporter importer standalone-importer.yaml
+    $ svcteleporter exporter standalone-exporter.yaml
 
 ## Installing From Source
 
 Requires [Go 1.12+](https://golang.org/dl/).  To fetch the latest sources and install into your system:
 
-    go get -u github.com/chirino/uc
+    go get -u github.com/chirino/svcteleporter
 
 ## Buidling From Source
 
 Use git to clone this repo:
 
-    git clone https://github.com/chirino/uc
-    cd uc
+    git clone https://github.com/chirino/svcteleporter
+    cd svcteleporter
 
 Then you can build it using:
 
