@@ -1,0 +1,31 @@
+
+# IDEs and editors
+/.idea
+.idea
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+*.launch
+.settings/
+.vscode/
+.checkstyle
+.pmd
+.pmdruleset.xml
+.factorypath
+.sts4-cache/
+
+# System Files
+.DS_Store
+Thumbs.db
+.directory
+
+# Build time generated files
+/image/dist
+.test*
+svcteleporter
+openshift-exporter.yaml
+openshift-importer.yaml
+standalone-exporter.yaml
+standalone-importer.yaml
