@@ -48,7 +48,7 @@ The main thing you need to figure out is a host name that your importer process 
     These files contain secrets.  Please be careful sharing them.
     $  
 
-You can then use the `oc create -f openshift-importer.yaml` to create the importer deployment on your openshift cluster.  You can also use `oc create -f openshift-exporter.yaml` to create the exporter.  If you don't have an openshift cluster, you can manually ron the importer and exporters like so:
+You can then use the `oc create -f openshift-importer.yaml` to create the importer deployment on your openshift cluster.  You can also use `oc create -f openshift-exporter.yaml` to create the exporter.  If you don't have an openshift cluster, you can manually run the importer and exporter processes like so:
     
     $ svcteleporter importer standalone-importer.yaml
     $ svcteleporter exporter standalone-exporter.yaml
