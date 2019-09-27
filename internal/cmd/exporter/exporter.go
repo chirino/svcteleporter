@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"github.com/chirino/svcteleporter/internal/cmd"
 	"github.com/chirino/svcteleporter/internal/pkg/utils"
-	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
 	"io"
 	"io/ioutil"
 	"log"
 	"net"
+	"pack.ag/amqp"
 	"sigs.k8s.io/yaml"
 	"time"
 )
@@ -52,8 +52,6 @@ func LoadConfigFile(configFile string) (*cmd.ExporterConfig, error) {
 }
 
 func Serve(ctx context.Context, config *cmd.ExporterConfig) error {
-	head := map[string][]string{}
-
 	publicKeyPem := []byte(config.Cert)
 	privateKeyPem := []byte(config.Key)
 	cert, err := tls.X509KeyPair(publicKeyPem, privateKeyPem)
@@ -100,19 +98,14 @@ func Serve(ctx context.Context, config *cmd.ExporterConfig) error {
 	}
 	tlsConfig.BuildNameToCertificate()
 
-	log.Println("exporter:websocket dialing:", config.ImporterUrl)
-	dialer := websocket.Dialer{
-		TLSClientConfig: tlsConfig,
-	}
-	websocketConnection, resp, err := dialer.DialContext(ctx, config.ImporterUrl, head)
-	if err != nil && resp != nil {
-		err = fmt.Errorf("%s: http response code: %d %s\n", err, resp.StatusCode, resp.Status)
-	}
+	log.Println("exporter:tls dialing:", config.ImporterUrl)
+	tlsConn, err := tls.Dial("tcp", config.ImporterUrl, tlsConfig)
+
+	client, err := amqp.Dial("amqps://"+config.ImporterUrl, amqp.ConnTLSConfig(tlsConfig))
 	if err != nil {
 		return err
 	}
-	defer websocketConnection.Close()
-	wsNetConn := utils.WebSocketToNetConn(context.Background(), websocketConnection, "exporter:wss ")
+	defer client.Close()
 
 	sshConfig := &ssh.ClientConfig{
 		User: "testuser",
@@ -122,7 +115,7 @@ func Serve(ctx context.Context, config *cmd.ExporterConfig) error {
 		sshConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 	}
 
-	c, chans, reqs, err := ssh.NewClientConn(wsNetConn, config.ImporterUrl, sshConfig)
+	c, chans, reqs, err := ssh.NewClientConn(tlsConn, config.ImporterUrl, sshConfig)
 	if err != nil {
 		return err
 	}

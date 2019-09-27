@@ -5,17 +5,15 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/chirino/ssh"
 	"github.com/chirino/svcteleporter/internal/cmd"
 	"github.com/chirino/svcteleporter/internal/pkg/utils"
-	"github.com/gliderlabs/ssh"
-	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
 	ssh2 "golang.org/x/crypto/ssh"
 	"io"
 	"io/ioutil"
 	"log"
 	"net"
-	"net/http"
 	"sigs.k8s.io/yaml"
 	"time"
 )
@@ -69,20 +67,13 @@ func LoadConfigFile(configFile string) (*cmd.ImporterConfig, error) {
 
 type importer struct {
 	context        context.Context
-	httpServer     *http.Server
+	TLSConfig *tls.Config
 	sshServer      ssh.Server
-	listenerBridge *utils.WsListener
 }
 
 func NewFromConfig(context context.Context, config *cmd.ImporterConfig) (*importer, error) {
-	listenerBridge := utils.ToWSListener(context, "importer:websocket ")
 	result := &importer{
 		context:        context,
-		listenerBridge: listenerBridge,
-		httpServer: &http.Server{
-			Handler:      &wssServer{wsListener: listenerBridge},
-			TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){}, // disables http/2
-		},
 		sshServer: newSshServer(config.Services...),
 	}
 
@@ -96,34 +87,34 @@ func NewFromConfig(context context.Context, config *cmd.ImporterConfig) (*import
 	for _, ca := range config.CAs {
 		caPool.AppendCertsFromPEM([]byte(ca))
 	}
-	result.httpServer.TLSConfig = &tls.Config{
+	result.TLSConfig = &tls.Config{
 		ClientAuth:               tls.RequireAndVerifyClientCert,
 		ClientCAs:                caPool,
 		PreferServerCipherSuites: true,
 		MinVersion:               tls.VersionTLS12,
 		Certificates:             []tls.Certificate{cert},
 	}
-	result.httpServer.TLSConfig.BuildNameToCertificate()
-	//log.Println("Accepting ssh over websocket connections at: " + result.httpServer.Addr)
-	//return result.httpServer.ListenAndServeTLS("", "")
-
+	result.TLSConfig.BuildNameToCertificate()
 	return result, nil
-	//log.Println("accepting ssh over websocket connections at: " + httpServer.Addr)
-	//return result.httpServer.ListenAndServe()
 }
 
-func (this *importer) Serve(l net.Listener) error {
-	// concurrently run both the ssh and http server....
-	results := make(chan error, 1)
-	go func() {
-		results <- this.sshServer.Serve(this.listenerBridge)
-	}()
-	// Wait for both to exit..
-	log.Println("listening for wss connections on:", l.Addr())
-	err1 := this.httpServer.ServeTLS(l, "", "")
-	// err1 := this.httpServer.Serve(l)
-	err2 := <-results
-	return utils.Errors(err1, err2)
+func (this *importer) Serve(listener net.Listener) error {
+	defer listener.Close()
+	l := tls.NewListener(listener, this.TLSConfig)
+	log.Println(l.Addr())
+	for {
+		conn, e := l.Accept()
+		if e != nil {
+			if ne, ok := e.(net.Error); ok && ne.Temporary() {
+				tempDelay := 5 * time.Millisecond
+				log.Println("http: Accept error: %v; retrying in %v", e, tempDelay)
+				time.Sleep(5 * time.Millisecond)
+				continue
+			}
+			return e
+		}
+		go this.sshServer.HandleConn(conn)
+	}
 }
 
 func newSshServer(servicePorts ...cmd.ProxySpec) ssh.Server {
@@ -158,26 +149,4 @@ func newSshServer(servicePorts ...cmd.ProxySpec) ssh.Server {
 		},
 	}
 	return server
-}
-
-type wssServer struct {
-	wsListener *utils.WsListener
-}
-
-func (s *wssServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:   1024,
-		WriteBufferSize:  1024,
-		HandshakeTimeout: 10 * time.Second,
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
-	}
-	websocketConnection, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println("importer:websocket upgrade failed", err)
-		return
-	}
-	log.Println("importer:websocket connection queued")
-	s.wsListener.Offer(websocketConnection)
 }

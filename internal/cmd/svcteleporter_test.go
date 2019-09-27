@@ -34,21 +34,20 @@ func TestEndToEnd(t *testing.T) {
 	targetHost := "127.0.0.1"
 
 	// Open the port the ssh over ws service.
-	httpListener, err := net.Listen("tcp", "127.0.0.1:0")
+	sslListener, err := net.Listen("tcp", "127.0.0.1:0")
 	FatalOnError(t, err)
-	httpPort := getPort(httpListener)
-	wsPort, err := strconv.Atoi(httpPort)
+	sslPort, err := strconv.Atoi(getPort(sslListener))
 	FatalOnError(t, err)
 
 	// Now that we know the ports that we will be using.. lets create the config
 	log.Println("Generating certs and config...")
 	err = create.ConfigFiles(create.Options{
-		WebSocketPort: uint32(wsPort),
+		WebSocketPort: uint32(sslPort),
 		Kinds:         []string{"standalone"},
 		Duration:      24 * time.Hour,
 		KeySize:       4096,
 		Prefix:        ".test-",
-		ImporterUrl:   "wss://127.0.0.1:" + httpPort,
+		ImporterUrl:   "127.0.0.1:" + getPort(sslListener),
 		Proxies: []cmd.ProxySpec{
 			cmd.ProxySpec{
 				ProxyPort:    2000,
@@ -67,7 +66,7 @@ func TestEndToEnd(t *testing.T) {
 		FatalOnError(t, err)
 		importer, err := importer.NewFromConfig(context.Background(), importerConfig)
 		FatalOnError(t, err)
-		err = importer.Serve(httpListener)
+		err = importer.Serve(sslListener)
 		FatalOnError(t, err)
 	}()
 

@@ -5,7 +5,7 @@ package importer
 //
 
 import (
-	"github.com/gliderlabs/ssh"
+	"github.com/chirino/ssh"
 	gossh "golang.org/x/crypto/ssh"
 	"io"
 	"log"
