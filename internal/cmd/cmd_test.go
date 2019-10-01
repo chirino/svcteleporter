@@ -15,8 +15,8 @@ func TestParseProxySpec(t *testing.T) {
 		t.FailNow()
 	}
 	assert.Equal(t, spec, ProxySpec{
-		ProxyService: "wow",
-		ProxyPort:    21,
+		KubeService:  "wow",
+		KubePort:     21,
 		UpstreamHost: "test",
 		UpstreamPort: 23,
 	})

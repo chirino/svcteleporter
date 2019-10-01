@@ -6,6 +6,7 @@ package importer
 
 import (
 	"github.com/chirino/ssh"
+	"github.com/chirino/svcteleporter/internal/cmd"
 	gossh "golang.org/x/crypto/ssh"
 	"io"
 	"log"
@@ -41,6 +42,7 @@ type remoteForwardChannelData struct {
 type ForwardedTCPHandler struct {
 	forwards map[string]net.Listener
 	sync.Mutex
+	config *cmd.ImporterConfig
 }
 
 func (h *ForwardedTCPHandler) HandleSSHRequest(ctx ssh.Context, srv *ssh.Server, req *gossh.Request) (bool, []byte) {
@@ -57,10 +59,8 @@ func (h *ForwardedTCPHandler) HandleSSHRequest(ctx ssh.Context, srv *ssh.Server,
 			// TODO: log parse failure
 			return false, []byte{}
 		}
-		if srv.ReversePortForwardingCallback == nil || !srv.ReversePortForwardingCallback(ctx, reqPayload.BindAddr, reqPayload.BindPort) {
-			return false, []byte("port forwarding is disabled")
-		}
 		addr := net.JoinHostPort(reqPayload.BindAddr, strconv.Itoa(int(reqPayload.BindPort)))
+
 		ln, err := net.Listen("tcp", addr)
 		if err != nil {
 			// TODO: log listen failure

@@ -1,4 +1,4 @@
-package create
+package install
 
 var exporterOpenshiftTemplate = `
 apiVersion: v1

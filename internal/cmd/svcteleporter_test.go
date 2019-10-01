@@ -3,14 +3,17 @@ package cmd_test
 import (
 	"context"
 	"github.com/chirino/svcteleporter/internal/cmd"
-	"github.com/chirino/svcteleporter/internal/cmd/create"
+	"github.com/chirino/svcteleporter/internal/cmd/install"
+	"strconv"
+
+	//"github.com/chirino/svcteleporter/internal/cmd"
+	//"github.com/chirino/svcteleporter/internal/cmd/create"
 	"github.com/chirino/svcteleporter/internal/cmd/exporter"
 	"github.com/chirino/svcteleporter/internal/cmd/importer"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"log"
 	"net"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -31,27 +34,22 @@ func TestEndToEnd(t *testing.T) {
 	FatalOnError(t, err)
 	targetPort, err := strconv.Atoi(getPort(mockSvcListener))
 	FatalOnError(t, err)
-	targetHost := "127.0.0.1"
-
 	// Open the port the ssh over ws service.
 	sslListener, err := net.Listen("tcp", "127.0.0.1:0")
-	FatalOnError(t, err)
-	sslPort, err := strconv.Atoi(getPort(sslListener))
 	FatalOnError(t, err)
 
 	// Now that we know the ports that we will be using.. lets create the config
 	log.Println("Generating certs and config...")
-	err = create.ConfigFiles(create.Options{
-		WebSocketPort: uint32(sslPort),
-		Kinds:         []string{"standalone"},
-		Duration:      24 * time.Hour,
-		KeySize:       4096,
-		Prefix:        ".test-",
-		ImporterUrl:   "127.0.0.1:" + getPort(sslListener),
+	err = install.ConfigFiles(install.Options{
+		Kinds:            []string{"standalone"},
+		Duration:         24 * time.Hour,
+		KeySize:          4096,
+		Prefix:           ".test-",
+		ImporterHostPort: "127.0.0.1:" + getPort(sslListener),
 		Proxies: []cmd.ProxySpec{
 			cmd.ProxySpec{
-				ProxyPort:    2000,
-				UpstreamHost: targetHost,
+				KubePort:     2000,
+				UpstreamHost: "127.0.0.1",
 				UpstreamPort: uint32(targetPort),
 			},
 		},

@@ -1,4 +1,4 @@
-package create
+package install
 
 var importerOpenshiftTemplate = `
 apiVersion: v1
@@ -10,8 +10,9 @@ items:
     name: svcteleporter-importer-ws
   spec:
     port:
-      targetPort: 8443
+      targetPort: 1443
     tls:
+      insecureEdgeTerminationPolicy: None
       termination: passthrough
     to:
       kind: Service
@@ -24,21 +25,21 @@ items:
     selector:
       app: svcteleporter-importer
     ports:
-      - port: 8443
+      - port: 1443
         protocol: TCP
-        targetPort: 8443
-{{range $val := .ImporterConfig.Services}}
+        targetPort: 1443
+{{range $i,$val := .ImporterConfig.Services}}
 - apiVersion: v1
   kind: Service
   metadata:
-    name: "{{$val.ProxyService}}"
+    name: "{{$val.KubeService}}"
   spec:
     selector:
       app: svcteleporter-importer
     ports:
       - protocol: TCP
-        port: {{$val.ProxyPort}}
-        targetPort: {{$val.ProxyPort}}
+        port: {{$val.KubePort}}
+        targetPort: {{add 2000 $i}}
 {{end}}
 
 - apiVersion: v1
@@ -77,8 +78,8 @@ items:
               - name: config-volume
                 mountPath: /config
             ports:
-              - containerPort: 8443
-{{range $val := .ImporterConfig.Services}}
-              - containerPort: {{$val.ProxyPort}}
+              - containerPort: 1443
+{{range $i, $val := .ImporterConfig.Services}}
+              - containerPort: {{add 2000 $i}}
 {{end}}
 `

@@ -1,7 +1,7 @@
 package svcteleporter
 
 import (
-	"github.com/chirino/svcteleporter/internal/cmd/create"
+	"github.com/chirino/svcteleporter/internal/cmd/install"
 	"github.com/chirino/svcteleporter/internal/cmd/exporter"
 	"github.com/chirino/svcteleporter/internal/cmd/importer"
 	"github.com/chirino/svcteleporter/internal/cmd/version"
@@ -14,7 +14,7 @@ func New() *cobra.Command {
 		Use: `svcteleporter`,
 	}
 	result.AddCommand(importer.New())
-	result.AddCommand(create.New())
+	result.AddCommand(install.New())
 	result.AddCommand(exporter.New())
 	result.AddCommand(version.New())
 	return result

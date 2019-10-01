@@ -13,13 +13,15 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
-	"pack.ag/amqp"
 	"sigs.k8s.io/yaml"
 	"time"
 )
 
+var ImporterHostPort=""
+
 func New() *cobra.Command {
-	return &cobra.Command{
+
+	command := &cobra.Command{
 		Use: `exporter`,
 		RunE: func(c *cobra.Command, args []string) error {
 			if len(args) != 1 {
@@ -33,6 +35,8 @@ func New() *cobra.Command {
 			return nil
 		},
 	}
+	command.Flags().StringVar(&ImporterHostPort, "importer-host-port", "", "The public hostname:port the importer runs at")
+	return command
 }
 
 func LoadConfigFile(configFile string) (*cmd.ExporterConfig, error) {
@@ -63,7 +67,16 @@ func Serve(ctx context.Context, config *cmd.ExporterConfig) error {
 		caPool.AppendCertsFromPEM([]byte(ca))
 	}
 
+	if ImporterHostPort != "" {
+		config.ImporterHostPort = ImporterHostPort
+	}
+	host, _, err := net.SplitHostPort(config.ImporterHostPort)
+	if err != nil {
+		return err
+	}
+
 	tlsConfig := &tls.Config{
+		ServerName:   host,
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      caPool,
 		MinVersion:   tls.VersionTLS12,
@@ -96,16 +109,14 @@ func Serve(ctx context.Context, config *cmd.ExporterConfig) error {
 			return nil
 		},
 	}
+
 	tlsConfig.BuildNameToCertificate()
 
-	log.Println("exporter:tls dialing:", config.ImporterUrl)
-	tlsConn, err := tls.Dial("tcp", config.ImporterUrl, tlsConfig)
-
-	client, err := amqp.Dial("amqps://"+config.ImporterUrl, amqp.ConnTLSConfig(tlsConfig))
+	log.Println("exporter:tls dialing:", config.ImporterHostPort)
+	tlsConn, err := tls.Dial("tcp", config.ImporterHostPort, tlsConfig)
 	if err != nil {
 		return err
 	}
-	defer client.Close()
 
 	sshConfig := &ssh.ClientConfig{
 		User: "testuser",
@@ -115,28 +126,28 @@ func Serve(ctx context.Context, config *cmd.ExporterConfig) error {
 		sshConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 	}
 
-	c, chans, reqs, err := ssh.NewClientConn(tlsConn, config.ImporterUrl, sshConfig)
+	c, chans, reqs, err := ssh.NewClientConn(tlsConn, config.ImporterHostPort, sshConfig)
 	if err != nil {
 		return err
 	}
 	sshConnection := ssh.NewClient(c, chans, reqs)
 
 	results := make(chan error)
-	for _, service := range config.Proxies {
+	for i, service := range config.Proxies {
 
 		targetAddressPort := fmt.Sprintf("%s:%d", service.UpstreamHost, service.UpstreamPort)
 
 		// Listen on remote server port
 		log.Println("exporter:opening listener for service ", targetAddressPort)
-		serviceListener, err := sshConnection.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", service.ProxyPort))
+		remoteHostPortListen, err := sshConnection.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", 2000+i))
 		if err != nil {
 			return fmt.Errorf("export error: %s", err)
 		}
 
 		go func() {
-			defer serviceListener.Close()
+			defer remoteHostPortListen.Close()
 			for {
-				sshTunnel, err := serviceListener.Accept()
+				sshTunnel, err := remoteHostPortListen.Accept()
 				if err != nil {
 					results <- err
 					return
